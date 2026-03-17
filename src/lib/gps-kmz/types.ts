@@ -5,6 +5,7 @@ export interface LatLng {
 
 export interface HoleGpsData {
   hole: number;
+  par?: number;
   tees: Record<string, LatLng>;
   green: {
     front?: LatLng;

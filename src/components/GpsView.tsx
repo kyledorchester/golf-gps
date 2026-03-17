@@ -102,6 +102,13 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
   const center = yards(hole.green.center ?? null);
   const back = yards(hole.green.back ?? null);
 
+  // Static tee-to-green distance from KMZ data (no GPS needed)
+  const teePos = selectedTee ? (hole.tees[selectedTee] ?? null) : null;
+  const greenTarget = hole.green.center ?? hole.green.front ?? hole.green.back ?? null;
+  const teeDistance = teePos && greenTarget
+    ? Math.round(metersToYards(haversineMeters(teePos, greenTarget)))
+    : null;
+
   const prevHole = () => setHoleIndex((i) => Math.max(0, i - 1));
   const nextHole = () => setHoleIndex((i) => Math.min(dataset.holes.length - 1, i + 1));
 
@@ -162,6 +169,11 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
                 </option>
               ))}
             </select>
+            {hole.par && (
+              <p className="text-xs font-semibold uppercase tracking-widest mt-0.5" style={{ color: "#6b7280" }}>
+                Par {hole.par}
+              </p>
+            )}
           </div>
           <button
             onClick={nextHole}
@@ -199,6 +211,15 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
               );
             })}
           </div>
+        )}
+        {/* Tee distance */}
+        {teeDistance !== null && (
+          <p className="text-center text-xs mt-3" style={{ color: "#6b7280" }}>
+            Tee distance:{" "}
+            <span className="font-bold" style={{ color: "#9ca3af" }}>
+              {teeDistance} yds
+            </span>
+          </p>
         )}
       </div>
 
