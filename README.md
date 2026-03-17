@@ -4,6 +4,7 @@ Standalone mobile-optimized GPS yardage app for golf courses.
 Loads a KMZ/KML course file and shows live distances to the green (Front / Center / Back) based on device location.
 
 **GitHub:** https://github.com/kyledorchester/golf-gps
+**Last commit:** `2b3b42e` — Remove unused HoleMap component and leaflet dependencies
 
 ## Local Path
 
@@ -16,7 +17,9 @@ C:\Users\kyledorc\Documents\kyle\GOLF APP\golf-gps
 - Next.js 16, React 19, TypeScript, Tailwind v4
 - JSZip (KMZ unzip), DOMParser (KML parse)
 - Haversine distance calculation (no external mapping API)
-- Browser Geolocation API
+- Browser Geolocation API (`watchPosition`)
+- Screen Wake Lock API (keeps screen on while on course)
+- PWA: `manifest.json` + service worker (`public/sw.js`)
 
 ## Run Locally
 
@@ -43,16 +46,28 @@ ngrok http 3010
 # Note: GPS requires HTTPS — always use the ngrok https:// URL, not http://
 ```
 
+**ngrok URL (free plan — same each time):** `https://subfestive-socorro-ectatic.ngrok-free.dev`
+
 ## Branding
 
 The app accepts a `primaryColor` prop on `<GpsApp />` (default: `#a80602`).
 When mounted in the shell app it will receive the org's `primaryColor` from branding.
 Base theme matches the shell app: `#1a1a1a` bg, `#242424` cards, `#111111` header, Segoe UI font.
 
-## Loading a Course
+## Features
 
-- **Upload KMZ or KML** — pick any KMZ or KML file from your device
-- **Load Sample** — place `dorchester_ranch.kmz` in `public/` and click the button
+- **KMZ + KML support** — upload either format; parser tries ZIP first, falls back to raw KML text
+- **Sample course** — `public/dorchester_ranch.kmz` loads via the sample button
+- **Course persistence** — last loaded course saved to localStorage; survives page refresh
+- **Hole navigation** — prev/next arrows + dropdown selector
+- **Tee selector** — picks from tees present in KMZ (Blue/White/Red/Gold/Black etc.)
+- **Tee distance** — yards from selected tee to center green
+- **Green yardages** — Front / Center / Back from live GPS position
+- **GPS accuracy** — shown in feet; Auto toggle locks/unlocks position
+- **Shot distance tracker** — tap "Mark Shot", walk to ball, shows yards to marked position
+- **Screen wake lock** — keeps screen on while app is open (re-acquired on tab visibility change)
+- **PWA** — installable to home screen; service worker caches app shell for offline use
+- **Dev-only tools** — manual lat/lng input fields hidden in production builds
 
 ## KMZ / KML Naming Conventions
 
@@ -66,21 +81,23 @@ Placemarks inside the file must follow this pattern:
 | `H01_GREEN_FRONT` | Hole 1, front of green |
 | `H01_GREEN_CENTER` | Hole 1, center of green |
 | `H01_GREEN_BACK` | Hole 1, back of green |
+| `H01_PAR_4` | Hole 1, par 4 |
+
+- Hole numbers: `H01`–`H18` (supports up to `H36` for 27/36-hole courses)
+- Par placemarks have no geometry (coordinates ignored)
+- Unrecognized placemarks are skipped with a warning shown on the load screen
 
 See `docs/gps-kmz-import.md` for the full guide including how to export from Google Earth Pro.
-
-## Backlog
-
-- [ ] KML (unzipped) file support in parser
-- [ ] Course persistence via localStorage (no reload on revisit)
-- [ ] Par per hole (`H01_PAR_4` naming convention)
-- [ ] PWA / install to home screen (offline support)
-- [ ] Shot distance tracker
-- [ ] Scorecard / score tracking
-- [ ] Hole auto-advance via GPS
 
 ## Platform Context
 
 This app is the standalone prototype for the `gps` platform module.
 When the shell app is ready it will mount at `/gps`.
 The KMZ parser lives in `src/lib/gps-kmz/` and is designed for reuse across modules.
+PWA / service worker registration moves to the shell level when integrated.
+
+## Backlog
+
+- [ ] Scorecard / score tracking per hole (likely handled by the Players Club module)
+- [ ] Hole auto-advance via GPS proximity detection
+- [ ] Wind / elevation display (requires external data source)
