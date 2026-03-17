@@ -34,6 +34,7 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
   const [geo, setGeo] = useState<GeoState>({ position: null, accuracy: null, error: null, denied: false });
   const [manualLat, setManualLat] = useState("");
   const [manualLng, setManualLng] = useState("");
+  const [shotMark, setShotMark] = useState<LatLng | null>(null);
   const watchIdRef = useRef<number | null>(null);
 
   const hole: HoleGpsData = dataset.holes[holeIndex];
@@ -98,15 +99,20 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
     return Math.round(metersToYards(haversineMeters(effectivePosition, target)));
   }
 
-  const front = yards(hole.green.front ?? null);
+  const front  = yards(hole.green.front  ?? null);
   const center = yards(hole.green.center ?? null);
-  const back = yards(hole.green.back ?? null);
+  const back   = yards(hole.green.back   ?? null);
 
   // Static tee-to-green distance from KMZ data (no GPS needed)
   const teePos = selectedTee ? (hole.tees[selectedTee] ?? null) : null;
   const greenTarget = hole.green.center ?? hole.green.front ?? hole.green.back ?? null;
   const teeDistance = teePos && greenTarget
     ? Math.round(metersToYards(haversineMeters(teePos, greenTarget)))
+    : null;
+
+  // Shot distance tracker
+  const shotDistance = shotMark && effectivePosition
+    ? Math.round(metersToYards(haversineMeters(shotMark, effectivePosition)))
     : null;
 
   const prevHole = () => setHoleIndex((i) => Math.max(0, i - 1));
@@ -138,7 +144,7 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
         </div>
         <button
           onClick={onReset}
-          className="text-xs font-semibold rounded-full px-4 py-1.5 transition-colors"
+          className="text-xs font-semibold rounded-full px-4 py-1.5"
           style={{ background: "#1a1a1a", color: "#d1d5db", border: "1px solid #374151" }}
         >
           Change Course
@@ -151,7 +157,7 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
           <button
             onClick={prevHole}
             disabled={holeIndex === 0}
-            className="w-12 h-12 rounded-full flex items-center justify-center text-2xl font-bold transition-colors disabled:opacity-20"
+            className="w-12 h-12 rounded-full flex items-center justify-center text-2xl font-bold disabled:opacity-20"
             style={{ background: "#242424", color: "#fff", border: "1px solid #333" }}
           >
             ‹
@@ -178,7 +184,7 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
           <button
             onClick={nextHole}
             disabled={holeIndex === dataset.holes.length - 1}
-            className="w-12 h-12 rounded-full flex items-center justify-center text-2xl font-bold transition-colors disabled:opacity-20"
+            className="w-12 h-12 rounded-full flex items-center justify-center text-2xl font-bold disabled:opacity-20"
             style={{ background: "#242424", color: "#fff", border: "1px solid #333" }}
           >
             ›
@@ -212,13 +218,12 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
             })}
           </div>
         )}
+
         {/* Tee distance */}
         {teeDistance !== null && (
           <p className="text-center text-xs mt-3" style={{ color: "#6b7280" }}>
             Tee distance:{" "}
-            <span className="font-bold" style={{ color: "#9ca3af" }}>
-              {teeDistance} yds
-            </span>
+            <span className="font-bold" style={{ color: "#9ca3af" }}>{teeDistance} yds</span>
           </p>
         )}
       </div>
@@ -227,21 +232,56 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
       <div className="mx-4" style={{ height: 1, background: "#2f2f2f" }} />
 
       {/* Yardage cards */}
-      <div className="flex-1 px-4 py-6 flex flex-col gap-3">
+      <div className="px-4 pt-5 pb-4 flex flex-col gap-3">
         {(!hole.green.front && !hole.green.center && !hole.green.back) ? (
-          <p className="text-center mt-8" style={{ color: "#4b5563" }}>No green data for this hole.</p>
+          <p className="text-center mt-4" style={{ color: "#4b5563" }}>No green data for this hole.</p>
         ) : (
           <>
-            {hole.green.front && (
-              <YardageCard label="Front" value={front} primaryColor={primaryColor} primary={false} />
-            )}
-            {hole.green.center && (
-              <YardageCard label="Center" value={center} primaryColor={primaryColor} primary />
-            )}
-            {hole.green.back && (
-              <YardageCard label="Back" value={back} primaryColor={primaryColor} primary={false} />
-            )}
+            {hole.green.front  && <YardageCard label="Front"  value={front}  primaryColor={primaryColor} />}
+            {hole.green.center && <YardageCard label="Center" value={center} primaryColor={primaryColor} primary />}
+            {hole.green.back   && <YardageCard label="Back"   value={back}   primaryColor={primaryColor} />}
           </>
+        )}
+      </div>
+
+      {/* Divider */}
+      <div className="mx-4" style={{ height: 1, background: "#2f2f2f" }} />
+
+      {/* Shot distance tracker */}
+      <div className="px-4 py-4">
+        {!shotMark ? (
+          <button
+            onClick={() => effectivePosition && setShotMark(effectivePosition)}
+            disabled={!effectivePosition}
+            className="w-full font-bold py-4 rounded-xl text-base disabled:opacity-30 transition-opacity"
+            style={{ background: primaryColor, color: "#fff" }}
+          >
+            Mark Shot
+          </button>
+        ) : (
+          <div
+            className="rounded-xl px-5 py-4 flex items-center justify-between"
+            style={{ background: "#242424", border: `1px solid ${primaryColor}40` }}
+          >
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: primaryColor }}>
+                Shot Distance
+              </p>
+              <p className="font-black tabular-nums leading-none" style={{ fontSize: 56, color: "#fff" }}>
+                {shotDistance !== null ? shotDistance : <span style={{ fontSize: 28, color: "#4b5563" }}>—</span>}
+                {shotDistance !== null && (
+                  <span className="text-base font-semibold ml-2" style={{ color: "#9ca3af" }}>yds</span>
+                )}
+              </p>
+            </div>
+            <button
+              onClick={() => setShotMark(null)}
+              className="text-xs font-semibold rounded-full px-4 py-2 ml-4"
+              style={{ background: "#333", color: "#d1d5db", border: "1px solid #444" }}
+            >
+              Clear
+            </button>
+          </div>
         )}
       </div>
 
@@ -255,12 +295,11 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
             <div className="w-2 h-2 rounded-full" style={{ background: gpsStatusColor }} />
             <span className="text-xs" style={{ color: "#9ca3af" }}>{gpsStatusText}</span>
           </div>
-          {/* Auto toggle */}
           <label className="flex items-center gap-2 cursor-pointer">
             <span className="text-xs" style={{ color: "#6b7280" }}>Auto</span>
             <div
               onClick={() => setAutoUpdate((v) => !v)}
-              className="w-9 h-5 rounded-full relative cursor-pointer transition-colors"
+              className="w-9 h-5 rounded-full relative cursor-pointer"
               style={{ background: autoUpdate ? primaryColor : "#374151" }}
             >
               <div
@@ -274,20 +313,14 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
         {/* Manual coords (testing) */}
         <div className="grid grid-cols-2 gap-2">
           <input
-            type="number"
-            step="any"
-            placeholder="Lat (test)"
-            value={manualLat}
-            onChange={(e) => setManualLat(e.target.value)}
+            type="number" step="any" placeholder="Lat (test)"
+            value={manualLat} onChange={(e) => setManualLat(e.target.value)}
             className="text-white text-xs rounded-lg px-3 py-2 outline-none"
             style={{ background: "#242424", border: "1px solid #333" }}
           />
           <input
-            type="number"
-            step="any"
-            placeholder="Lng (test)"
-            value={manualLng}
-            onChange={(e) => setManualLng(e.target.value)}
+            type="number" step="any" placeholder="Lng (test)"
+            value={manualLng} onChange={(e) => setManualLng(e.target.value)}
             className="text-white text-xs rounded-lg px-3 py-2 outline-none"
             style={{ background: "#242424", border: "1px solid #333" }}
           />
@@ -304,10 +337,7 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
 }
 
 function YardageCard({
-  label,
-  value,
-  primaryColor,
-  primary = false,
+  label, value, primaryColor, primary = false,
 }: {
   label: string;
   value: number | null;
@@ -330,11 +360,7 @@ function YardageCard({
       </span>
       <span
         className="font-black tabular-nums"
-        style={{
-          fontSize: primary ? 64 : 52,
-          color: primary ? "#ffffff" : "#d1d5db",
-          lineHeight: 1,
-        }}
+        style={{ fontSize: primary ? 64 : 52, color: primary ? "#ffffff" : "#d1d5db", lineHeight: 1 }}
       >
         {value !== null ? value : <span style={{ fontSize: 28, color: "#4b5563" }}>—</span>}
       </span>
