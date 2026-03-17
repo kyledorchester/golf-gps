@@ -7,6 +7,7 @@ import { haversineMeters, metersToYards } from "@/lib/gps-kmz/haversine";
 interface Props {
   dataset: CourseGpsDataset;
   onReset: () => void;
+  primaryColor?: string;
 }
 
 interface GeoState {
@@ -18,15 +19,15 @@ interface GeoState {
 
 const TEE_ORDER = ["BLUE", "WHITE", "RED", "GOLD", "BLACK"];
 
-const TEE_STYLE: Record<string, { bg: string; text: string }> = {
-  BLUE:  { bg: "bg-blue-600",   text: "text-white" },
-  WHITE: { bg: "bg-white",      text: "text-black" },
-  RED:   { bg: "bg-red-600",    text: "text-white" },
-  GOLD:  { bg: "bg-yellow-500", text: "text-black" },
-  BLACK: { bg: "bg-gray-800 border border-gray-500", text: "text-white" },
+const TEE_COLORS: Record<string, { bg: string; text: string }> = {
+  BLUE:  { bg: "#2563eb", text: "#fff" },
+  WHITE: { bg: "#ffffff", text: "#111" },
+  RED:   { bg: "#dc2626", text: "#fff" },
+  GOLD:  { bg: "#d97706", text: "#fff" },
+  BLACK: { bg: "#1f2937", text: "#fff" },
 };
 
-export default function GpsView({ dataset, onReset }: Props) {
+export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: Props) {
   const [holeIndex, setHoleIndex] = useState(0);
   const [selectedTee, setSelectedTee] = useState<string | null>(null);
   const [autoUpdate, setAutoUpdate] = useState(true);
@@ -107,30 +108,44 @@ export default function GpsView({ dataset, onReset }: Props) {
   const hasGps = !!geo.position && !manualPosition;
   const accuracyOk = geo.accuracy !== null && geo.accuracy <= 20;
 
-  return (
-    <div className="min-h-screen bg-gray-950 text-white flex flex-col max-w-md mx-auto">
+  const gpsStatusColor = manualPosition ? "#d97706" : hasGps ? (accuracyOk ? "#4ade80" : "#facc15") : "#4b5563";
+  const gpsStatusText = manualPosition
+    ? "Manual position"
+    : hasGps
+    ? geo.accuracy !== null ? `GPS ±${Math.round(geo.accuracy)}m` : "GPS active"
+    : geo.error ? "No GPS" : "Acquiring GPS...";
 
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 pt-5 pb-2">
+  return (
+    <div className="min-h-screen flex flex-col max-w-md mx-auto" style={{ background: "#1a1a1a" }}>
+
+      {/* Header bar */}
+      <div
+        className="flex items-center justify-between px-4 py-3"
+        style={{ background: "#111111", borderBottom: `3px solid ${primaryColor}` }}
+      >
         <div>
-          <p className="text-green-400 text-xs font-semibold uppercase tracking-widest">Golf GPS</p>
-          <h1 className="text-lg font-bold leading-tight">{dataset.courseName}</h1>
+          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: primaryColor }}>
+            Golf GPS
+          </p>
+          <h1 className="text-base font-bold leading-tight text-white">{dataset.courseName}</h1>
         </div>
         <button
           onClick={onReset}
-          className="text-gray-500 hover:text-white text-xs border border-gray-700 rounded-lg px-3 py-1.5 transition-colors"
+          className="text-xs font-semibold rounded-full px-4 py-1.5 transition-colors"
+          style={{ background: "#1a1a1a", color: "#d1d5db", border: "1px solid #374151" }}
         >
           Change Course
         </button>
       </div>
 
       {/* Hole selector */}
-      <div className="px-4 pt-4 pb-3">
+      <div className="px-4 pt-5 pb-4">
         <div className="flex items-center gap-3">
           <button
             onClick={prevHole}
             disabled={holeIndex === 0}
-            className="w-12 h-12 rounded-full bg-gray-800 hover:bg-gray-700 disabled:opacity-20 flex items-center justify-center text-2xl font-bold transition-colors"
+            className="w-12 h-12 rounded-full flex items-center justify-center text-2xl font-bold transition-colors disabled:opacity-20"
+            style={{ background: "#242424", color: "#fff", border: "1px solid #333" }}
           >
             ‹
           </button>
@@ -138,10 +153,11 @@ export default function GpsView({ dataset, onReset }: Props) {
             <select
               value={holeIndex}
               onChange={(e) => setHoleIndex(parseInt(e.target.value))}
-              className="bg-transparent text-white text-3xl font-black text-center border-none outline-none cursor-pointer w-full"
+              className="text-white text-4xl font-black text-center border-none outline-none cursor-pointer w-full"
+              style={{ background: "transparent" }}
             >
               {dataset.holes.map((h, i) => (
-                <option key={h.hole} value={i} className="bg-gray-900 text-base">
+                <option key={h.hole} value={i} style={{ background: "#242424", fontSize: 16 }}>
                   Hole {h.hole}
                 </option>
               ))}
@@ -150,7 +166,8 @@ export default function GpsView({ dataset, onReset }: Props) {
           <button
             onClick={nextHole}
             disabled={holeIndex === dataset.holes.length - 1}
-            className="w-12 h-12 rounded-full bg-gray-800 hover:bg-gray-700 disabled:opacity-20 flex items-center justify-center text-2xl font-bold transition-colors"
+            className="w-12 h-12 rounded-full flex items-center justify-center text-2xl font-bold transition-colors disabled:opacity-20"
+            style={{ background: "#242424", color: "#fff", border: "1px solid #333" }}
           >
             ›
           </button>
@@ -158,17 +175,24 @@ export default function GpsView({ dataset, onReset }: Props) {
 
         {/* Tee selector */}
         {availableTees.length > 0 && (
-          <div className="flex justify-center gap-2 mt-3">
+          <div className="flex justify-center gap-2 mt-4">
             {availableTees.map((tee) => {
-              const style = TEE_STYLE[tee] ?? { bg: "bg-gray-600", text: "text-white" };
+              const style = TEE_COLORS[tee] ?? { bg: "#374151", text: "#fff" };
               const isSelected = selectedTee === tee;
               return (
                 <button
                   key={tee}
                   onClick={() => setSelectedTee(tee)}
-                  className={`px-5 py-1.5 rounded-full text-sm font-bold transition-all
-                    ${style.bg} ${style.text}
-                    ${isSelected ? "ring-2 ring-white ring-offset-2 ring-offset-gray-950 scale-105" : "opacity-50"}`}
+                  className="px-5 py-1.5 rounded-full text-sm font-bold transition-all"
+                  style={{
+                    background: style.bg,
+                    color: style.text,
+                    opacity: isSelected ? 1 : 0.4,
+                    outline: isSelected ? `2px solid ${primaryColor}` : "none",
+                    outlineOffset: 2,
+                    transform: isSelected ? "scale(1.05)" : "scale(1)",
+                    border: tee === "WHITE" ? "1px solid #555" : "none",
+                  }}
                 >
                   {tee}
                 </button>
@@ -179,62 +203,54 @@ export default function GpsView({ dataset, onReset }: Props) {
       </div>
 
       {/* Divider */}
-      <div className="h-px bg-gray-800 mx-4" />
+      <div className="mx-4" style={{ height: 1, background: "#2f2f2f" }} />
 
-      {/* Yardages — the main event */}
-      <div className="flex-1 px-4 py-6 flex flex-col gap-4">
-
+      {/* Yardage cards */}
+      <div className="flex-1 px-4 py-6 flex flex-col gap-3">
         {(!hole.green.front && !hole.green.center && !hole.green.back) ? (
-          <p className="text-center text-gray-600 mt-8">No green data for this hole.</p>
+          <p className="text-center mt-8" style={{ color: "#4b5563" }}>No green data for this hole.</p>
         ) : (
           <>
             {hole.green.front && (
-              <YardageCard label="Front" value={front} accent="text-gray-300" />
+              <YardageCard label="Front" value={front} primaryColor={primaryColor} primary={false} />
             )}
             {hole.green.center && (
-              <YardageCard label="Center" value={center} accent="text-green-400" primary />
+              <YardageCard label="Center" value={center} primaryColor={primaryColor} primary />
             )}
             {hole.green.back && (
-              <YardageCard label="Back" value={back} accent="text-gray-300" />
+              <YardageCard label="Back" value={back} primaryColor={primaryColor} primary={false} />
             )}
           </>
         )}
       </div>
 
       {/* Divider */}
-      <div className="h-px bg-gray-800 mx-4" />
+      <div className="mx-4" style={{ height: 1, background: "#2f2f2f" }} />
 
       {/* GPS status bar */}
       <div className="px-4 py-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${hasGps ? (accuracyOk ? "bg-green-400" : "bg-yellow-400") : "bg-gray-600"}`} />
-            <span className="text-xs text-gray-400">
-              {manualPosition
-                ? "Manual position"
-                : hasGps
-                ? geo.accuracy !== null
-                  ? `GPS \u00b1${Math.round(geo.accuracy)}m`
-                  : "GPS active"
-                : geo.error
-                ? "No GPS"
-                : "Acquiring GPS..."}
-            </span>
+            <div className="w-2 h-2 rounded-full" style={{ background: gpsStatusColor }} />
+            <span className="text-xs" style={{ color: "#9ca3af" }}>{gpsStatusText}</span>
           </div>
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-1.5 cursor-pointer">
-              <span className="text-xs text-gray-500">Auto</span>
+          {/* Auto toggle */}
+          <label className="flex items-center gap-2 cursor-pointer">
+            <span className="text-xs" style={{ color: "#6b7280" }}>Auto</span>
+            <div
+              onClick={() => setAutoUpdate((v) => !v)}
+              className="w-9 h-5 rounded-full relative cursor-pointer transition-colors"
+              style={{ background: autoUpdate ? primaryColor : "#374151" }}
+            >
               <div
-                onClick={() => setAutoUpdate((v) => !v)}
-                className={`w-9 h-5 rounded-full transition-colors relative cursor-pointer ${autoUpdate ? "bg-green-600" : "bg-gray-700"}`}
-              >
-                <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${autoUpdate ? "translate-x-4" : "translate-x-0.5"}`} />
-              </div>
-            </label>
-          </div>
+                className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform"
+                style={{ transform: autoUpdate ? "translateX(16px)" : "translateX(2px)" }}
+              />
+            </div>
+          </label>
         </div>
 
-        {/* Manual coords */}
+        {/* Manual coords (testing) */}
         <div className="grid grid-cols-2 gap-2">
           <input
             type="number"
@@ -242,7 +258,8 @@ export default function GpsView({ dataset, onReset }: Props) {
             placeholder="Lat (test)"
             value={manualLat}
             onChange={(e) => setManualLat(e.target.value)}
-            className="bg-gray-900 text-white text-xs rounded-lg px-3 py-2 border border-gray-700 placeholder-gray-600"
+            className="text-white text-xs rounded-lg px-3 py-2 outline-none"
+            style={{ background: "#242424", border: "1px solid #333" }}
           />
           <input
             type="number"
@@ -250,11 +267,14 @@ export default function GpsView({ dataset, onReset }: Props) {
             placeholder="Lng (test)"
             value={manualLng}
             onChange={(e) => setManualLng(e.target.value)}
-            className="bg-gray-900 text-white text-xs rounded-lg px-3 py-2 border border-gray-700 placeholder-gray-600"
+            className="text-white text-xs rounded-lg px-3 py-2 outline-none"
+            style={{ background: "#242424", border: "1px solid #333" }}
           />
         </div>
         {manualPosition && (
-          <p className="text-yellow-500 text-xs mt-1.5 text-center">Using manual coords — clear to use GPS</p>
+          <p className="text-xs mt-1.5 text-center" style={{ color: "#d97706" }}>
+            Using manual coords — clear to use GPS
+          </p>
         )}
       </div>
 
@@ -265,19 +285,37 @@ export default function GpsView({ dataset, onReset }: Props) {
 function YardageCard({
   label,
   value,
-  accent,
+  primaryColor,
   primary = false,
 }: {
   label: string;
   value: number | null;
-  accent: string;
+  primaryColor: string;
   primary?: boolean;
 }) {
   return (
-    <div className={`rounded-2xl px-6 py-5 flex items-center justify-between ${primary ? "bg-gray-800" : "bg-gray-900"}`}>
-      <span className={`font-semibold uppercase tracking-widest text-sm ${accent}`}>{label}</span>
-      <span className={`font-black tabular-nums ${primary ? "text-6xl text-white" : "text-5xl text-gray-200"}`}>
-        {value !== null ? value : <span className="text-gray-600 text-3xl">—</span>}
+    <div
+      className="rounded-xl px-6 py-5 flex items-center justify-between"
+      style={{
+        background: primary ? "#242424" : "#1e1e1e",
+        border: primary ? `1px solid ${primaryColor}40` : "1px solid #2f2f2f",
+      }}
+    >
+      <span
+        className="font-semibold uppercase tracking-widest text-sm"
+        style={{ color: primary ? primaryColor : "#9ca3af" }}
+      >
+        {label}
+      </span>
+      <span
+        className="font-black tabular-nums"
+        style={{
+          fontSize: primary ? 64 : 52,
+          color: primary ? "#ffffff" : "#d1d5db",
+          lineHeight: 1,
+        }}
+      >
+        {value !== null ? value : <span style={{ fontSize: 28, color: "#4b5563" }}>—</span>}
       </span>
     </div>
   );
