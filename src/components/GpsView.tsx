@@ -36,6 +36,7 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
   const [manualLng, setManualLng] = useState("");
   const [shotMark, setShotMark] = useState<LatLng | null>(null);
   const watchIdRef = useRef<number | null>(null);
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
 
   const hole: HoleGpsData = dataset.holes[holeIndex];
   const availableTees = [
@@ -89,6 +90,31 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
       }
     };
   }, [autoUpdate, handleGeoSuccess, handleGeoError]);
+
+  // Screen wake lock — keep screen on while on the course
+  useEffect(() => {
+    async function requestWakeLock() {
+      if ("wakeLock" in navigator) {
+        try {
+          wakeLockRef.current = await navigator.wakeLock.request("screen");
+        } catch {
+          // User denied or not supported — silently ignore
+        }
+      }
+    }
+    requestWakeLock();
+
+    // Re-acquire after tab becomes visible again (wake lock releases on tab hide)
+    function onVisibilityChange() {
+      if (document.visibilityState === "visible") requestWakeLock();
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      wakeLockRef.current?.release();
+    };
+  }, []);
 
   const manualPosition: LatLng | null =
     manualLat && manualLng ? { lat: parseFloat(manualLat), lng: parseFloat(manualLng) } : null;
@@ -310,25 +336,29 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
           </label>
         </div>
 
-        {/* Manual coords (testing) */}
-        <div className="grid grid-cols-2 gap-2">
-          <input
-            type="number" step="any" placeholder="Lat (test)"
-            value={manualLat} onChange={(e) => setManualLat(e.target.value)}
-            className="text-white text-xs rounded-lg px-3 py-2 outline-none"
-            style={{ background: "#242424", border: "1px solid #333" }}
-          />
-          <input
-            type="number" step="any" placeholder="Lng (test)"
-            value={manualLng} onChange={(e) => setManualLng(e.target.value)}
-            className="text-white text-xs rounded-lg px-3 py-2 outline-none"
-            style={{ background: "#242424", border: "1px solid #333" }}
-          />
-        </div>
-        {manualPosition && (
-          <p className="text-xs mt-1.5 text-center" style={{ color: "#d97706" }}>
-            Using manual coords — clear to use GPS
-          </p>
+        {/* Manual coords — dev only */}
+        {process.env.NODE_ENV === "development" && (
+          <>
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="number" step="any" placeholder="Lat (test)"
+                value={manualLat} onChange={(e) => setManualLat(e.target.value)}
+                className="text-white text-xs rounded-lg px-3 py-2 outline-none"
+                style={{ background: "#242424", border: "1px solid #333" }}
+              />
+              <input
+                type="number" step="any" placeholder="Lng (test)"
+                value={manualLng} onChange={(e) => setManualLng(e.target.value)}
+                className="text-white text-xs rounded-lg px-3 py-2 outline-none"
+                style={{ background: "#242424", border: "1px solid #333" }}
+              />
+            </div>
+            {manualPosition && (
+              <p className="text-xs mt-1.5 text-center" style={{ color: "#d97706" }}>
+                Using manual coords — clear to use GPS
+              </p>
+            )}
+          </>
         )}
       </div>
 
