@@ -31,6 +31,8 @@ export default function CourseLoader({ onLoad, primaryColor = "#a80602" }: Props
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setLoading(false);
+      // Reset input so the same file can be re-selected after an error
+      if (fileRef.current) fileRef.current.value = "";
     }
   }
 

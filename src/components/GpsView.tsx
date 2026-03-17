@@ -37,17 +37,9 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
   const [shotMark, setShotMark] = useState<LatLng | null>(null);
   const watchIdRef = useRef<number | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const wakeLockRef = useRef<any>(null); // WakeLockSentinel not yet in all TS lib.dom versions
+  const wakeLockRef = useRef<any>(null); // WakeLockSentinel not in all TS lib.dom versions
 
-  // Guard: empty dataset (shouldn't happen after parser validation, but be safe)
-  if (!dataset.holes || dataset.holes.length === 0) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#1a1a1a" }}>
-        <p style={{ color: "#6b7280" }}>No hole data found in this course file.</p>
-      </div>
-    );
-  }
-
+  // dataset.holes is guaranteed non-empty by GpsApp guard — all hooks unconditionally above this line
   const safeIndex = Math.min(holeIndex, dataset.holes.length - 1);
   const hole: HoleGpsData = dataset.holes[safeIndex];
   const availableTees = [
@@ -55,16 +47,14 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
     ...Object.keys(hole.tees).filter((t) => !TEE_ORDER.includes(t)).sort(),
   ];
 
-  // Reset tee selection when hole changes; reset shot mark too
-  // eslint-disable-next-line react-hooks/rules-of-hooks
+  // Reset tee selection and shot mark when hole changes
   useEffect(() => {
     setSelectedTee((prev) => (prev && hole.tees[prev] ? prev : availableTees[0] ?? null));
     setShotMark(null);
-  // availableTees is derived from hole which changes with holeIndex — holeIndex is the correct dep
+  // availableTees derives from hole which changes with holeIndex — holeIndex is the correct dep
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [holeIndex]);
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const handleGeoSuccess = useCallback((pos: GeolocationPosition) => {
     setGeo({
       position: { lat: pos.coords.latitude, lng: pos.coords.longitude },
@@ -74,7 +64,6 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
     });
   }, []);
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const handleGeoError = useCallback((err: GeolocationPositionError) => {
     setGeo((prev) => ({
       ...prev,
@@ -83,13 +72,12 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
     }));
   }, []);
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
     if (!navigator.geolocation) {
       setGeo((prev) => ({ ...prev, error: "Geolocation not supported.", denied: false }));
       return;
     }
-    // Always clear existing watch before (re)starting — prevents multiple simultaneous watchers
+    // Always clear before (re)starting — prevents multiple simultaneous watchers
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
@@ -109,12 +97,12 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
     };
   }, [autoUpdate, handleGeoSuccess, handleGeoError]);
 
-  // Screen wake lock — keep screen on while on the course
-  // eslint-disable-next-line react-hooks/rules-of-hooks
+  // Screen wake lock — keeps screen on during a round
   useEffect(() => {
     async function requestWakeLock() {
       if ("wakeLock" in navigator) {
         try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           wakeLockRef.current = await (navigator as any).wakeLock.request("screen");
         } catch {
           // Permission denied or not supported — silently ignore
@@ -134,12 +122,12 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
     };
   }, []);
 
-  // Validate manual coords — reject NaN and out-of-range values
+  // Validate manual coords — reject NaN, out-of-range, and non-finite values
   const manualPosition: LatLng | null = (() => {
     if (!manualLat || !manualLng) return null;
     const lat = parseFloat(manualLat);
     const lng = parseFloat(manualLng);
-    if (isNaN(lat) || isNaN(lng)) return null;
+    if (!isFinite(lat) || !isFinite(lng)) return null;
     if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
     return { lat, lng };
   })();
@@ -148,7 +136,8 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
 
   function yards(target: LatLng | null): number | null {
     if (!target || !effectivePosition) return null;
-    return Math.round(metersToYards(haversineMeters(effectivePosition, target)));
+    const result = Math.round(metersToYards(haversineMeters(effectivePosition, target)));
+    return isFinite(result) ? result : null;
   }
 
   const front  = yards(hole.green.front  ?? null);
@@ -158,14 +147,16 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
   // Static tee-to-green distance from KMZ data (no GPS needed)
   const teePos = selectedTee ? (hole.tees[selectedTee] ?? null) : null;
   const greenTarget = hole.green.center ?? hole.green.front ?? hole.green.back ?? null;
-  const teeDistance = teePos && greenTarget
+  const teeDistanceRaw = teePos && greenTarget
     ? Math.round(metersToYards(haversineMeters(teePos, greenTarget)))
     : null;
+  const teeDistance = teeDistanceRaw !== null && isFinite(teeDistanceRaw) ? teeDistanceRaw : null;
 
   // Shot distance tracker
-  const shotDistance = shotMark && effectivePosition
+  const shotDistanceRaw = shotMark && effectivePosition
     ? Math.round(metersToYards(haversineMeters(shotMark, effectivePosition)))
     : null;
+  const shotDistance = shotDistanceRaw !== null && isFinite(shotDistanceRaw) ? shotDistanceRaw : null;
 
   const prevHole = () => setHoleIndex((i) => Math.max(0, i - 1));
   const nextHole = () => setHoleIndex((i) => Math.min(dataset.holes.length - 1, i + 1));
@@ -195,6 +186,7 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
           <h1 className="text-base font-bold leading-tight text-white">{dataset.courseName}</h1>
         </div>
         <button
+          aria-label="Change course"
           onClick={onReset}
           className="text-xs font-semibold rounded-full px-4 py-1.5"
           style={{ background: "#1a1a1a", color: "#d1d5db", border: "1px solid #374151" }}
@@ -207,6 +199,7 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
       <div className="px-4 pt-5 pb-4">
         <div className="flex items-center gap-3">
           <button
+            aria-label="Previous hole"
             onClick={prevHole}
             disabled={holeIndex === 0}
             className="w-12 h-12 rounded-full flex items-center justify-center text-2xl font-bold disabled:opacity-20"
@@ -216,6 +209,7 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
           </button>
           <div className="flex-1 text-center">
             <select
+              aria-label="Select hole"
               value={safeIndex}
               onChange={(e) => setHoleIndex(parseInt(e.target.value))}
               className="text-white text-4xl font-black text-center border-none outline-none cursor-pointer w-full"
@@ -234,6 +228,7 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
             )}
           </div>
           <button
+            aria-label="Next hole"
             onClick={nextHole}
             disabled={safeIndex === dataset.holes.length - 1}
             className="w-12 h-12 rounded-full flex items-center justify-center text-2xl font-bold disabled:opacity-20"
@@ -252,6 +247,8 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
               return (
                 <button
                   key={tee}
+                  aria-label={`Select ${tee} tee`}
+                  aria-pressed={isSelected}
                   onClick={() => setSelectedTee(tee)}
                   className="px-5 py-1.5 rounded-full text-sm font-bold transition-all"
                   style={{
@@ -303,13 +300,14 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
       <div className="px-4 py-4">
         {!shotMark ? (
           <button
+            aria-label="Mark shot position"
             onClick={() => effectivePosition && setShotMark(effectivePosition)}
             disabled={!effectivePosition}
             title={!effectivePosition ? "Waiting for GPS lock" : "Tap to mark your current position"}
             className="w-full font-bold py-4 rounded-xl text-base disabled:opacity-30 transition-opacity"
             style={{ background: primaryColor, color: "#fff" }}
           >
-            Mark Shot
+            {!effectivePosition ? "Waiting for GPS..." : "Mark Shot"}
           </button>
         ) : (
           <div
@@ -328,6 +326,7 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
               </p>
             </div>
             <button
+              aria-label="Clear shot mark"
               onClick={() => setShotMark(null)}
               className="text-xs font-semibold rounded-full px-4 py-2 ml-4"
               style={{ background: "#333", color: "#d1d5db", border: "1px solid #444" }}
@@ -343,16 +342,19 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
 
       {/* GPS status bar */}
       <div className="px-4 py-4">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full" style={{ background: gpsStatusColor }} />
             <span className="text-xs" style={{ color: "#9ca3af" }}>{gpsStatusText}</span>
           </div>
-          <label className="flex items-center gap-2 cursor-pointer">
+          <button
+            aria-label={autoUpdate ? "Disable auto GPS" : "Enable auto GPS"}
+            onClick={() => setAutoUpdate((v) => !v)}
+            className="flex items-center gap-2"
+          >
             <span className="text-xs" style={{ color: "#6b7280" }}>Auto</span>
             <div
-              onClick={() => setAutoUpdate((v) => !v)}
-              className="w-9 h-5 rounded-full relative cursor-pointer"
+              className="w-9 h-5 rounded-full relative"
               style={{ background: autoUpdate ? primaryColor : "#374151" }}
             >
               <div
@@ -360,13 +362,20 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
                 style={{ transform: autoUpdate ? "translateX(16px)" : "translateX(2px)" }}
               />
             </div>
-          </label>
+          </button>
         </div>
+
+        {/* GPS permission denied — show recovery hint */}
+        {geo.denied && (
+          <p className="text-xs mt-1" style={{ color: "#f87171" }}>
+            Location access denied. Enable it in your browser settings, then reload.
+          </p>
+        )}
 
         {/* Manual coords — dev only */}
         {process.env.NODE_ENV === "development" && (
           <>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2 mt-2">
               <input
                 type="number" step="any" placeholder="Lat (test)"
                 value={manualLat} onChange={(e) => setManualLat(e.target.value)}

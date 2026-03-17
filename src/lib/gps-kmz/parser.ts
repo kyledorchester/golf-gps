@@ -9,7 +9,8 @@ function parseCoordinates(coordString: string): LatLng | null {
   if (parts.length < 2) return null;
   const lng = parseFloat(parts[0]);
   const lat = parseFloat(parts[1]);
-  if (isNaN(lat) || isNaN(lng)) return null;
+  if (!isFinite(lat) || !isFinite(lng)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
   return { lat, lng };
 }
 
@@ -86,6 +87,7 @@ export function parseKmlText(kmlText: string, courseName: string): KmzParseResul
     const parMatch = name.match(PAR_PATTERN);
     if (parMatch) {
       const holeNum = parseInt(parMatch[1], 10);
+      if (holeNum < 1 || holeNum > 36) { warnings.push(`Skipping out-of-range hole number: ${holeNum}`); continue; }
       const par = parseInt(parMatch[2], 10);
       getOrCreateHole(holeNum).par = par;
       continue;
@@ -96,6 +98,7 @@ export function parseKmlText(kmlText: string, courseName: string): KmzParseResul
     const teeMatch = name.match(TEE_PATTERN);
     if (teeMatch) {
       const holeNum = parseInt(teeMatch[1], 10);
+      if (holeNum < 1 || holeNum > 36) { warnings.push(`Skipping out-of-range hole number: ${holeNum}`); continue; }
       getOrCreateHole(holeNum).tees[teeMatch[2]] = coords;
       continue;
     }
@@ -103,6 +106,7 @@ export function parseKmlText(kmlText: string, courseName: string): KmzParseResul
     const greenMatch = name.match(GREEN_PATTERN);
     if (greenMatch) {
       const holeNum = parseInt(greenMatch[1], 10);
+      if (holeNum < 1 || holeNum > 36) { warnings.push(`Skipping out-of-range hole number: ${holeNum}`); continue; }
       const pos = greenMatch[2].toLowerCase() as "front" | "center" | "back";
       getOrCreateHole(holeNum).green[pos] = coords;
       continue;

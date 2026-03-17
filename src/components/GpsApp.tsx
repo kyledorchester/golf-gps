@@ -20,8 +20,9 @@ export default function GpsApp({ primaryColor = "#a80602" }: Props) {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) setDataset(JSON.parse(saved));
-    } catch {
-      // ignore corrupt data
+    } catch (err) {
+      console.warn("[GolfGPS] Failed to restore saved course:", err);
+      try { localStorage.removeItem(STORAGE_KEY); } catch {}
     }
     setReady(true);
   }, []);
@@ -44,7 +45,7 @@ export default function GpsApp({ primaryColor = "#a80602" }: Props) {
   // Avoid flash of CourseLoader before localStorage check completes
   if (!ready) return <div className="min-h-screen" style={{ background: "#1a1a1a" }} suppressHydrationWarning />;
 
-  if (!dataset) {
+  if (!dataset || dataset.holes.length === 0) {
     return <CourseLoader onLoad={handleLoad} primaryColor={primaryColor} />;
   }
 
