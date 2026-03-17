@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <rect width="192" height="192" fill="#1a1a1a" rx="28"/>
+  <!-- Flag pole -->
+  <line x1="82" y1="38" x2="82" y2="148" stroke="#ffffff" stroke-width="7" stroke-linecap="round"/>
+  <!-- Flag -->
+  <polygon points="82,38 138,62 82,86" fill="#a80602"/>
+  <!-- Ground shadow -->
+  <ellipse cx="82" cy="152" rx="28" ry="7" fill="#2f2f2f"/>
+</svg>

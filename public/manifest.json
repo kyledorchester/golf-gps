@@ -1,0 +1,18 @@
+{
+  "name": "Golf GPS",
+  "short_name": "Golf GPS",
+  "description": "Live course yardages — Front, Center, Back",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a1a1a",
+  "theme_color": "#a80602",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
