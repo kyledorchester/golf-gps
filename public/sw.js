@@ -1,8 +1,8 @@
-const CACHE_NAME = 'golf-gps-v1';
+const CACHE_NAME = 'golf-gps-v2';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(['/']))
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(['/', '/manifest.json', '/icon.svg']))
   );
   self.skipWaiting();
 });
@@ -26,12 +26,16 @@ self.addEventListener('fetch', (event) => {
     event.request.url.includes('/api/')
   ) {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match(event.request))
+      fetch(event.request).catch(() =>
+        caches.match(event.request).then((cached) =>
+          cached ?? new Response('Offline — file not cached.', { status: 503 })
+        )
+      )
     );
     return;
   }
 
-  // Cache-first for everything else (app shell, JS, CSS)
+  // Cache-first for app shell (JS, CSS, fonts, etc.)
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
@@ -41,7 +45,9 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }
         return response;
-      }).catch(() => cached);
+      }).catch(() =>
+        cached ?? new Response('Offline — no cached version available.', { status: 503 })
+      );
     })
   );
 });

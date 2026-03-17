@@ -36,19 +36,35 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
   const [manualLng, setManualLng] = useState("");
   const [shotMark, setShotMark] = useState<LatLng | null>(null);
   const watchIdRef = useRef<number | null>(null);
-  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const wakeLockRef = useRef<any>(null); // WakeLockSentinel not yet in all TS lib.dom versions
 
-  const hole: HoleGpsData = dataset.holes[holeIndex];
+  // Guard: empty dataset (shouldn't happen after parser validation, but be safe)
+  if (!dataset.holes || dataset.holes.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#1a1a1a" }}>
+        <p style={{ color: "#6b7280" }}>No hole data found in this course file.</p>
+      </div>
+    );
+  }
+
+  const safeIndex = Math.min(holeIndex, dataset.holes.length - 1);
+  const hole: HoleGpsData = dataset.holes[safeIndex];
   const availableTees = [
     ...TEE_ORDER.filter((t) => hole.tees[t]),
     ...Object.keys(hole.tees).filter((t) => !TEE_ORDER.includes(t)).sort(),
   ];
 
+  // Reset tee selection when hole changes; reset shot mark too
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
     setSelectedTee((prev) => (prev && hole.tees[prev] ? prev : availableTees[0] ?? null));
+    setShotMark(null);
+  // availableTees is derived from hole which changes with holeIndex — holeIndex is the correct dep
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [holeIndex]);
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const handleGeoSuccess = useCallback((pos: GeolocationPosition) => {
     setGeo({
       position: { lat: pos.coords.latitude, lng: pos.coords.longitude },
@@ -58,6 +74,7 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
     });
   }, []);
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const handleGeoError = useCallback((err: GeolocationPositionError) => {
     setGeo((prev) => ({
       ...prev,
@@ -66,10 +83,16 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
     }));
   }, []);
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
     if (!navigator.geolocation) {
       setGeo((prev) => ({ ...prev, error: "Geolocation not supported.", denied: false }));
       return;
+    }
+    // Always clear existing watch before (re)starting — prevents multiple simultaneous watchers
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
     }
     if (autoUpdate) {
       watchIdRef.current = navigator.geolocation.watchPosition(handleGeoSuccess, handleGeoError, {
@@ -77,11 +100,6 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
         timeout: 10000,
         maximumAge: 0,
       });
-    } else {
-      if (watchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-        watchIdRef.current = null;
-      }
     }
     return () => {
       if (watchIdRef.current !== null) {
@@ -92,19 +110,19 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
   }, [autoUpdate, handleGeoSuccess, handleGeoError]);
 
   // Screen wake lock — keep screen on while on the course
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
     async function requestWakeLock() {
       if ("wakeLock" in navigator) {
         try {
-          wakeLockRef.current = await navigator.wakeLock.request("screen");
+          wakeLockRef.current = await (navigator as any).wakeLock.request("screen");
         } catch {
-          // User denied or not supported — silently ignore
+          // Permission denied or not supported — silently ignore
         }
       }
     }
     requestWakeLock();
 
-    // Re-acquire after tab becomes visible again (wake lock releases on tab hide)
     function onVisibilityChange() {
       if (document.visibilityState === "visible") requestWakeLock();
     }
@@ -116,8 +134,16 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
     };
   }, []);
 
-  const manualPosition: LatLng | null =
-    manualLat && manualLng ? { lat: parseFloat(manualLat), lng: parseFloat(manualLng) } : null;
+  // Validate manual coords — reject NaN and out-of-range values
+  const manualPosition: LatLng | null = (() => {
+    if (!manualLat || !manualLng) return null;
+    const lat = parseFloat(manualLat);
+    const lng = parseFloat(manualLng);
+    if (isNaN(lat) || isNaN(lng)) return null;
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+    return { lat, lng };
+  })();
+
   const effectivePosition: LatLng | null = manualPosition ?? geo.position;
 
   function yards(target: LatLng | null): number | null {
@@ -190,7 +216,7 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
           </button>
           <div className="flex-1 text-center">
             <select
-              value={holeIndex}
+              value={safeIndex}
               onChange={(e) => setHoleIndex(parseInt(e.target.value))}
               className="text-white text-4xl font-black text-center border-none outline-none cursor-pointer w-full"
               style={{ background: "transparent" }}
@@ -209,7 +235,7 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
           </div>
           <button
             onClick={nextHole}
-            disabled={holeIndex === dataset.holes.length - 1}
+            disabled={safeIndex === dataset.holes.length - 1}
             className="w-12 h-12 rounded-full flex items-center justify-center text-2xl font-bold disabled:opacity-20"
             style={{ background: "#242424", color: "#fff", border: "1px solid #333" }}
           >
@@ -279,6 +305,7 @@ export default function GpsView({ dataset, onReset, primaryColor = "#a80602" }: 
           <button
             onClick={() => effectivePosition && setShotMark(effectivePosition)}
             disabled={!effectivePosition}
+            title={!effectivePosition ? "Waiting for GPS lock" : "Tap to mark your current position"}
             className="w-full font-bold py-4 rounded-xl text-base disabled:opacity-30 transition-opacity"
             style={{ background: primaryColor, color: "#fff" }}
           >

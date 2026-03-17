@@ -120,5 +120,20 @@ export function parseKmlText(kmlText: string, courseName: string): KmzParseResul
     };
   }
 
+  // Warn if hole numbers are non-sequential (e.g. skipped holes in KMZ)
+  for (let i = 0; i < holes.length; i++) {
+    if (holes[i].hole !== i + 1) {
+      warnings.push(`Hole numbering is not sequential: expected ${i + 1}, got ${holes[i].hole}. Check KMZ placemark names.`);
+      break;
+    }
+  }
+
+  // Warn on holes missing all green data
+  for (const h of holes) {
+    if (!h.green.front && !h.green.center && !h.green.back) {
+      warnings.push(`Hole ${h.hole}: no green coordinates found (need H${String(h.hole).padStart(2,"0")}_GREEN_FRONT/CENTER/BACK).`);
+    }
+  }
+
   return { success: true, dataset: { courseName, holes }, warnings };
 }

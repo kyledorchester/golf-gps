@@ -27,7 +27,12 @@ export default function GpsApp({ primaryColor = "#a80602" }: Props) {
   }, []);
 
   function handleLoad(d: CourseGpsDataset) {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); } catch {}
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(d));
+    } catch {
+      // Serialization or storage quota failed — clear corrupt entry
+      try { localStorage.removeItem(STORAGE_KEY); } catch {}
+    }
     setDataset(d);
   }
 
@@ -37,7 +42,7 @@ export default function GpsApp({ primaryColor = "#a80602" }: Props) {
   }
 
   // Avoid flash of CourseLoader before localStorage check completes
-  if (!ready) return <div className="min-h-screen" style={{ background: "#1a1a1a" }} />;
+  if (!ready) return <div className="min-h-screen" style={{ background: "#1a1a1a" }} suppressHydrationWarning />;
 
   if (!dataset) {
     return <CourseLoader onLoad={handleLoad} primaryColor={primaryColor} />;
