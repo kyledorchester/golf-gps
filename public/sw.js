@@ -1,8 +1,8 @@
-const CACHE_NAME = 'golf-gps-v2';
+const CACHE_NAME = 'golf-gps-v3';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(['/', '/manifest.json', '/icon.svg']))
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(['/', '/manifest.json', '/icon.svg', '/icon-192.png', '/icon-512.png', '/icon-180.png']))
   );
   self.skipWaiting();
 });
